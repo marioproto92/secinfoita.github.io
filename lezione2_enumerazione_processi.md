@@ -66,11 +66,13 @@ HANDLE hSnapShot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
 if (hSnapShot == NULL) return 0;
 ```
 Da notare l’uso del parametro TH32CS_SNAPPROCESS che ci permetterà di includere nell’enumerazione anche i processi sistema.
-Prima di richiamare l’API Process32	First è necessario inizializzare un PROCESSENTRY32 che conterrà le informazioni sui processi.
+Prima di richiamare l’API Process32First è necessario inizializzare un PROCESSENTRY32 che conterrà le informazioni sui processi.
 ```cpp
 PROCESSENTRY32 pe32;
 pe32.dwSize = sizeof(PROCESSENTRY32);
+```
 Ora tramite Process32First otteniamo il primo processo nell’istantanea.
+```cpp
 if (!Process32First(hSnapShot, &pe32))
 	{
 		CloseHandle(hSnapShot);

